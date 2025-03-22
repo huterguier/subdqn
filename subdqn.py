@@ -110,7 +110,6 @@ def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
 
 if __name__ == "__main__":
     
-
     args = tyro.cli(Args)
     f = open("subdqn" + (str)(args.seed) + ".log", "w")
     assert args.num_envs == 1, "vectorized envs are not supported at the moment"
@@ -141,7 +140,7 @@ if __name__ == "__main__":
         opt_state=opt_state,
     )
 
-    q_network.apply = jax.jit(q_network.apply)
+    #q_network.apply = jax.jit(q_network.apply)
     # This step is not necessary as init called on same observation and key will always lead to same initializations
     q_state = q_state.replace(target_params=optax.incremental_update(q_state.params, q_state.target_params, 1))
 
@@ -202,6 +201,15 @@ if __name__ == "__main__":
 
         return loss_value, q_pred, q_state
 
+    @jax.jit
+    def get_action(q_state, q_key, obs):
+        alpha = jax.random.uniform(q_key, (1,))
+        params = optax.incremental_update(*q_state.params, alpha)
+        q_values = q_network.apply(params, obs)
+        action = q_values.argmax(axis=-1)
+
+        return action
+
     start_time = time.time()
 
     # TRY NOT TO MODIFY: start the game
@@ -212,12 +220,7 @@ if __name__ == "__main__":
         if random.random() < epsilon:
             actions = np.array([envs.single_action_space.sample() for _ in range(envs.num_envs)])
         else:
-            alpha = jax.random.uniform(q_key, (envs.num_envs, 1))
-            params = optax.incremental_update(q_state.params[0], q_state.params[1], alpha)
-            q_values = q_network.apply(q_state.params[0], obs)
-            actions = q_values.argmax(axis=-1)
-            actions = jax.device_get(actions)
-
+            actions = np.array(get_action(q_state, q_key, obs))
         # TRY NOT TO MODIFY: execute the game and log data.
         next_obs, rewards, terminations, truncations, infos = envs.step(actions)
 
@@ -249,7 +252,7 @@ if __name__ == "__main__":
         # ALGO LOGIC: training.
         if global_step > args.learning_starts:
             if global_step % args.train_frequency == 0:
-                q_key, _ = jax.random.split(q_key)
+                #q_key, _ = jax.random.split(q_key)
                 data = buffer.sample(buffer_state, q_key)
                 batch = data.experience
                 # perform a gradient-descent step
