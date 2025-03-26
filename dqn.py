@@ -9,8 +9,6 @@ import flax
 import flax.core
 import flax.linen as nn
 import gymnasium as gym
-import gym.wrappers
-import gym.envs.classic_control.cartpole
 import jax
 import jax.numpy as jnp
 import numpy as np
