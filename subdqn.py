@@ -9,8 +9,6 @@ import flax
 import flax.core
 import flax.linen as nn
 import gymnasium as gym
-import gym.wrappers
-import gym.envs.classic_control.cartpole
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -88,7 +86,7 @@ class QNetwork(nn.Module):
         x = nn.Dense(self.action_dim)(x)
         return x
 
-@chex.dataclass
+@chex.dataclass(frozen=True)
 class TrainState:
     params: flax.core.FrozenDict
     target_params: flax.core.FrozenDict
@@ -178,7 +176,7 @@ if __name__ == "__main__":
 
 
 
-    @partial(jax.jit, donate_argnums=0)
+    @jax.jit
     def update(q_state, q_key, observations, actions, next_observations, rewards, dones):
         alpha = jax.random.uniform(q_key, (1,))
         target_params = optax.incremental_update(*q_state.target_params, alpha)
@@ -196,9 +194,13 @@ if __name__ == "__main__":
             return loss, q_pred
 
         (loss_value, q_pred), grads = jax.value_and_grad(mse_loss, has_aux=True)(q_state.params)
-        updates, q_state.opt_state = tx.update(grads, q_state.opt_state)
-        q_state.params = optax.apply_updates(q_state.params, updates)
+        updates, opt_state = tx.update(grads, q_state.opt_state)
+        params = optax.apply_updates(q_state.params, updates)
 
+        q_state = q_state.replace(
+                params=params,
+                opt_state=opt_state,
+        )
         return loss_value, q_pred, q_state
 
     @jax.jit
